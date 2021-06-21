@@ -3,29 +3,43 @@ import requests
 from flask import Flask, request, redirect
 import random
 import pika
+import consul 
 app = Flask(__name__)
 
 
 @app.route('/')
 def redirect_root():
-    return redirect("/fascad_service", code=302)
+    return redirect("/facade_service", code=302)
 
-@app.route('/fascad_service', methods=['GET', 'POST'])
+@app.route('/facade_service', methods=['GET', 'POST'])
 def fascade():
-    micro_msg_ports = [5003,5004]
-    micro_logs_ports = [5005,5006,5007]
+    micro_msg_ports = []
+    micro_logs_ports = []
+    for i in  c.agent.services():
+        if "logging" in i:
+            micro_logs_ports.append(c.agent.services()[i]['Port'])
+
+    for i in  c.agent.services():
+        if "messag" in i:
+            micro_msg_ports.append(c.agent.services()[i]['Port'])        
+    _,data = c.kv.get('rmqlogin')
+    rmqlogin = data['Value'].decode()
+    _,data = c.kv.get('rmqpass')
+    rmqpass = data['Value'].decode()
+    _,data = c.kv.get('rmqqueue')
+    rmqqueue = data['Value'].decode()
     ml_port = random.choice(micro_logs_ports)
-    credentials = pika.PlainCredentials('rabbitmq', 'rabbitmq')
+    credentials = pika.PlainCredentials(rmqlogin, rmqpass)
     conn_params = pika.ConnectionParameters('localhost',5672,'/',credentials)
     connection = pika.BlockingConnection(conn_params)
     channel = connection.channel()
-    channel.queue_declare(queue='lab6')
+    channel.queue_declare(queue=rmqqueue)
 
     if request.method == 'POST':
         if request.json.get('msg'):
             content = {str(uuid.uuid4()): request.json.get('msg')}
             requests.post(f'http://localhost:{ml_port}/log', json=content)
-            channel.basic_publish(exchange='', routing_key='lab6', body=str(request.json.get('msg')))
+            channel.basic_publish(exchange='', routing_key=rmqqueue, body=str(request.json.get('msg')))
             return 'Request accepted'
         else:
             return 'Bad Request', 400
@@ -38,4 +52,9 @@ def fascade():
         return answer, 200   
 
 if __name__ == '__main__':
-    app.run(port=5001, debug=True)
+    service_name = "facade"
+    service_addr = "192.168.88.1"
+    port = 5001
+    c = consul.Consul()
+    c.agent.service.register(name=service_name, address=service_addr, port=port)
+    app.run(host="0.0.0.0",port=port, debug=True,use_reloader=False)
