@@ -1,6 +1,7 @@
 from flask import Flask, request, redirect
 import hazelcast
 import sys
+import uuid
 import consul
 app = Flask(__name__)
 
@@ -18,19 +19,20 @@ def log():
         return alllogs
 
 if __name__ == '__main__':
-    service_name = "logging1" 
+    service_name = "logging" 
+    service_id = "logging1" 
     service_addr = "192.168.88.1"
     c = consul.Consul()
     k = 2
     while True:
-        if service_name in c.agent.services():
-            service_name=service_name[:7] + str(k)
+        if service_id in c.agent.services():
+            service_id=service_id[:7] + str(k)
             k+=1
         else:
             break    
     port = 5003 + k  
 
-    c.agent.service.register(name=service_name, address=service_addr, port=port)
+    c.agent.service.register(service_id=service_id,name=service_name, address=service_addr, port=port)
     _,data = c.kv.get('hzcname')
     hzcname = data['Value'].decode()
     _,data = c.kv.get('hzdm')

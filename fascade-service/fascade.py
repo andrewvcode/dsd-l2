@@ -15,13 +15,12 @@ def redirect_root():
 def fascade():
     micro_msg_ports = []
     micro_logs_ports = []
-    for i in  c.agent.services():
-        if "logging" in i:
-            micro_logs_ports.append(c.agent.services()[i]['Port'])
+    for instance in c.catalog.service("logging")[1]:
+        micro_logs_ports.append(instance["ServicePort"])
 
-    for i in  c.agent.services():
-        if "messag" in i:
-            micro_msg_ports.append(c.agent.services()[i]['Port'])        
+    for instance in c.catalog.service("messages")[1]:
+        micro_msg_ports.append(instance["ServicePort"])  
+
     _,data = c.kv.get('rmqlogin')
     rmqlogin = data['Value'].decode()
     _,data = c.kv.get('rmqpass')
